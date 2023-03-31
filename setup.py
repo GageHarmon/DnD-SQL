@@ -17,7 +17,7 @@ class Characterdb:
                             name TEXT,
                             team_id INTEGER,
                             dungeonmaster_id INTEGER,
-                            FOREIGN KEY (playerset_id) REFERENCES team(id),
+                            FOREIGN KEY (team_id) REFERENCES team(id),
                             FOREIGN KEY (dungeonmaster_id) REFERENCES dungeonmaster(id)
                             )''')
         
@@ -195,7 +195,7 @@ class Characterdb:
         self.c.execute("SELECT player_1_id, player_2_id, player_3_id, player_4_id FROM team WHERE id=?", (team_id,))
         player_ids = self.c.fetchone()
         if not player_ids:
-            print(f'''No player set with ID {team_id} exists.''')
+            print(f'''No Team with ID {team_id} exists.''')
             return
 
         # ++++++ Retrieve player information for each player in the set +++++++++++
