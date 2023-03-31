@@ -1,5 +1,5 @@
 import sqlite3
-from classes import Character, DungeonMaster, Players
+from classes import Character, DungeonMaster, Players, Campaigns
 
 # Define database operations
 class Characterdb:
@@ -21,7 +21,9 @@ class Characterdb:
         
         self.c.execute('''CREATE TABLE IF NOT EXISTS dungeonmaster (
                             id INTEGER PRIMARY KEY,
-                            name TEXT
+                            name TEXT,
+                            campaign_id INTEGER,
+                            FOREIGN KEY (campaign_id) REFERENCES campaign(id)
                             )''')
         
         self.c.execute('''CREATE TABLE IF NOT EXISTS playerset (
@@ -52,66 +54,54 @@ class Characterdb:
                             intelligence INTEGER,
                             charisma INTEGER,
                             wisdom INTEGER
-                            )''')
-        # # Retrieve all players in a playerset that belongs to a campaign with ID 1
-        # self.c.execute('''SELECT players.*
-        #            FROM players
-        #            JOIN playerset ON playerset.player_1_id = players.id OR
-        #                             playerset.player_2_id = players.id OR
-        #                             playerset.player_3_id = players.id OR
-        #                             playerset.player_4_id = players.id
-        #            JOIN campaign_playerset ON campaign_playerset.playerset_id = playerset.id
-        #            WHERE campaign_playerset.campaign_id = 1''')
-        # results = self.c.fetchall()
-        # print(results)
-
-        # # Retrieve the dungeon master for a campaign with ID 2
-        # self.c.execute('''SELECT dungeonmaster.*
-        #            FROM dungeonmaster
-        #            JOIN campaign_dungeonmaster ON campaign_dungeonmaster.dungeonmaster_id = dungeonmaster.id
-        #            WHERE campaign_dungeonmaster.campaign_id = 2''')
-        # results = self.c.fetchall()
-        # print(results)
+                            )''')   
+        self.conn.commit()
         
+# ++++++++++++++++ Campaign Editiing +++++++++++++++++++            
+    def add_new_campaign(self, name, dungeonmaster_id, playerset_id,):
+        self.c.execute("INSERT INTO campaigns VALUES (NULL, ?, ?, ?)", (name, dungeonmaster_id, playerset_id))
         self.conn.commit()
     
-#  ++++++++++++++++++++ Dungeon Master Editing ++++++++++++++++++++
-    def edit_dungeonmaster(self):
-        while True:
-            print("Dungeon Master Edit\n")
-            print("1. Add Dungeon Master")
-            print("2. Display All Dungeon Masters")
-            print("3. Update Dungeon Master")
-            print("4. Delete Dungeon Master")
-            print("5. Quit")
+    def get_all_campaigns(self):
+        self.c.execute('''SELECT * FROM campaigns''')
+        campaigns = self.c.fetchall()
+        for campaign in campaigns:
+            print(f'''| ID: {campaign[0]} | Name: {campaign[1]}
+                    ''')
+        return campaigns
+
+    def get_campaign_info(self, campaign_id):
+        self.c.execute('''SELECT * FROM campaigns WHERE id=?''', (campaign_id,))
+        campaign = self.c.fetchone()
+        if not campaign:
+            print("Campaign not found!")
+        else:
+            print(f"| Campaign Name: {campaign[1]}")
+
+            # get dungeon master info
+            self.c.execute('''SELECT * FROM dungeonmaster WHERE id=?''', (campaign[3],))
+            dm = self.c.fetchone()
+            print(f'''| Dungeon Master: {dm[1]}
+                  ''')
             
-            choice = input("Enter choice: ")
-            
-            if choice == "1":
-                name = input("Enter name: ")
-                self.add_dungeonmaster(name)
-                
-            elif choice == "2":
-                dungeonmasters = self.get_all_dungeonmasters()
-                for dungeonmaster in dungeonmasters:
-                    print(dungeonmaster)
-                
-            elif choice == "3":
-                id = int(input("Enter ID: "))
-                dungeonmaster = self.get_dungeonmaster(id)
-                name = input("Enter new name: ")
-                dungeonmaster.name = name
-                self.update_dungeonmaster(dungeonmaster)
-                print("Dungeon Master updated!")
-                
-            elif choice == "4":
-                id = int(input("Enter ID: "))
-                self.delete_dungeonmaster(id)
-                print("Dungeon Master deleted!")
-                
-            elif choice == "5":
-                break
+            # get player info
+            self.c.execute('''SELECT * FROM playerset WHERE id=?''', (campaign[2],))
+            playerset = self.c.fetchone()
+            print("Players:")
+            for i in range(1, 5):
+                player_id = playerset[i]
+                if player_id:
+                    self.c.execute('''SELECT * FROM players WHERE id=?''', (player_id,))
+                    player = self.c.fetchone()
+                    print(f"  - {player[1]} | (Character ID: {player[2]})")
+
+    def delete_campaigns(self, id):
+        self.c.execute("DELETE FROM campaigns WHERE id=?", (id,))
+        self.conn.commit()
+        # Return the number of rows deleted
+        return self.c.rowcount
     
+#  ++++++++++++++++++++ Dungeon Master Editing ++++++++++++++++++++
     def add_dungeonmaster(self, name):
         self.c.execute("INSERT INTO dungeonmaster VALUES (NULL, ?)", (name,))
         self.conn.commit()
@@ -132,41 +122,6 @@ class Characterdb:
         return dungeonmasters
     
 # ++++++++++++++++++++ Player Editing ++++++++++++++++++++
-    def edit_players(self):
-        while True:
-            print("Player Edit\n")
-            print("1. Add Player")
-            print("2. Display All Players")
-            print("3. Update Player")
-            print("4. Delete Player")
-            print("5. Quit")
-            
-            choice = input("Enter choice: ")
-            
-            if choice == "1":
-                name = input("Enter name: ")
-                self.add_player(name)
-                
-            elif choice == "2":
-                players = self.get_all_players()
-                for player in players:
-                    print(player)
-                
-            elif choice == "3":
-                id = int(input("Enter ID: "))
-                player = self.get_player(id)
-                name = input("Enter new name: ")
-                player.name = name
-                self.update_player(player)
-                print("Player updated!")
-                
-            elif choice == "4":
-                id = int(input("Enter ID: "))
-                self.delete_player(id)
-                print("Player deleted!")
-                
-            elif choice == "5":
-                break
 
     def add_player(self, name, character_id):
         self.c.execute("INSERT INTO players VALUES (NULL, ?, ?)", (name, character_id))
@@ -197,43 +152,71 @@ class Characterdb:
             player = Players(row[0], row[1], row[2])
             players.append(player)
         return players
+    
+    # +++++++ ANOTHER GPT JOIN +++++++
+    def display_character_info(self, player_id):
+        self.c.execute("SELECT * FROM players WHERE id=?", (player_id,))
+        row = self.c.fetchone()
+        if not row:
+            print("No player found with the given ID.")
+            return
+        player = Players(row[0], row[1], row[2])
+        character_id = player.character_id
+        self.c.execute("SELECT * FROM characters WHERE id=?", (character_id,))
+        row = self.c.fetchone()
+        if not row:
+            print("No character found with the given ID.")
+            return
+        character = Character(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+        print(character)
         
+# ++++++++++++++++++++ PLAYERSET Editing ++++++++++++++++++++
+    def add_playerset(self, player_1_id, player_2_id, player_3_id, player_4_id):
+        self.c.execute("INSERT INTO playerset VALUES (NULL, ?, ?, ?, ?)",
+                       (player_1_id, player_2_id, player_3_id, player_4_id))
+        playerset_id = self.c.lastrowid
+        self.conn.commit()
+        return playerset_id
+    
+    def get_all_playersets(self):
+        self.c.execute("SELECT * FROM playerset")
+        return self.c.fetchall()
+    
+    def delete_playerset(self, id):
+        self.c.execute("DELETE FROM playerset WHERE id=?", (id,))
+        self.conn.commit()
+        return self.c.rowcount
+    
+    # ++++++ JOIN BUILT WITH THE HELP OF GPT ++++++
+    def display_player_set_info(self, player_set_id):
+        # Retrieve player IDs from the player set
+        self.c.execute("SELECT player_1_id, player_2_id, player_3_id, player_4_id FROM playerset WHERE id=?", (player_set_id,))
+        player_ids = self.c.fetchone()
+        if not player_ids:
+            print(f"No player set with ID {player_set_id} exists.")
+            return
+
+        # ++++++ Retrieve player information for each player in the set +++++++++++
+        for player_id in player_ids:
+            self.c.execute("SELECT p.name, c.name, c.hp, c.strength, c.dexterity, c.intelligence, c.charisma, c.wisdom "
+                        "FROM players p "
+                        "JOIN characters c ON p.character_id = c.id "
+                        "WHERE p.id=?", (player_id,))
+            player_info = self.c.fetchone()
+            if player_info:
+                print(f"|| Player: {player_info[0]}")
+                print(f"|| Character: {player_info[1]}")
+                print(f"|| HP: {player_info[2]}")
+                print(f"|| Strength: {player_info[3]}")
+                print(f"|| Dexterity: {player_info[4]}")
+                print(f"|| Intelligence: {player_info[5]}")
+                print(f"|| Charisma: {player_info[6]}")
+                print(f"|| Wisdom: {player_info[7]}")
+                print()
+            else:
+                print(f"|| No player with ID {player_id} exists.")
+
 # ++++++++++++++++++++ Character Editing ++++++++++++++++++++
-    def edit_characters(self):
-        while True:
-            print("Character Edit\n")
-            print("1. Add Character")
-            print("2. Display All characters")
-            print("3. Update Character")
-            print("4. Delete Character")
-            print("5. Quit")
-            
-            choice = input("Enter choice: ")
-            
-            if choice == "1":
-                name = input("Enter name: ")
-                self.add_character(name)
-                
-            elif choice == "2":
-                characters = self.get_all_characters()
-                for character in characters:
-                    print(character)
-                
-            elif choice == "3":
-                id = int(input("Enter ID: "))
-                character = self.get_character(id)
-                name = input("Enter new name: ")
-                character.name = name
-                self.update_character(character)
-                print("Character updated!")
-                
-            elif choice == "4":
-                id = int(input("Enter ID: "))
-                self.delete_character(id)
-                print("Character deleted!")
-                
-            elif choice == "5":
-                break
 
     def add_character(self, character):
         self.c.execute("INSERT INTO characters VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)",
@@ -271,12 +254,22 @@ class Characterdb:
             characters.append(character)
         return characters
     
+    
+    def get_character_by_id(self, character_id):
+        self.c.execute("SELECT * FROM characters WHERE id=?", (character_id,))
+        row = self.c.fetchone()
+        if row:
+            character = Character(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+            return character
+        else:
+            return None
+    
     def delete_character(self, id):
         self.c.execute("DELETE FROM characters WHERE id=?", (id,))
         self.conn.commit()
         # Return the number of rows deleted
         return self.c.rowcount
- 
+
 # ++++++++++++  initalizes DB +++++++++++  
 db =  Characterdb("./dnd.db")
 
@@ -304,25 +297,65 @@ print('''
 
 while True:
     print("\nPlease choose an option:\n")
-    print("\n1. Edit Dungeon Masters\n")
-    print("\n2. Edit Players\n")
-    print("\n3. Edit Characters\n")
-    print("4. Quit")
+    print("\n1. Campaign setup\n")
+    print("\n2. Edit Dungeon Masters\n")
+    print("\n3. Edit Players\n")
+    print("\n4. Edit Playersets\n")
+    print("\n5. Edit Characters\n")
+    print("6. Quit")
     
-    choice = input("\nEnter your choice (1-4): ")
-# ++++++ DUNGEON MASTER SELECTION +++++++    
+    choice = input("\nEnter your choice (1-6): ")
+# ++++++ CAMPAIGN SELECTION +++++++++
     if choice == "1":
+        print("""
+        1. Add New Campaign
+        2. Get All Campaigns
+        3. Delete Campaigns
+        4. Quit
+        """)
+        campaign_choice = input('Enter choice: ')
+        
+        if campaign_choice == "1":
+            name = input("Enter campaign name: ")
+            dungeonmaster_id = input ("Enter DM ID: ")
+            playerset_id = input ("Enter playerset ID: ")
+            db.add_new_campaign(name, dungeonmaster_id, playerset_id)
+            print(f'''\n{name} has been created!
+                  ''')
+        
+        elif campaign_choice == "2":
+            campaigns = db.get_all_campaigns()
+            if campaigns:
+                campaign_id = input("Enter campaign ID to get info: ")
+                
+                db.get_campaign_info(campaign_id)
+        
+        elif campaign_choice == "3":
+            id = input("\nEnter Campaign ID: ")
+            deleted = db.delete_campaigns(id)
+            if deleted:
+                print(f"\nCampaign with id {id} has been deleted from the database.\n")
+            else:
+                print(f"\nCampaign with id {id} not found in the database.\n")
+                
+        elif campaign_choice == "4":
+            pass
+                      
+# ++++++ DUNGEON MASTER SELECTION +++++++    
+    elif choice == "2":
         print("""
         1. Add Dungeon Master
         2. Display All Dungeon Masters
         3. Delete Dungeon Master
+        4. Quit
         """)
         dungeonmaster_choice = input("Enter choice: ")
         
         if dungeonmaster_choice == "1":
             name = input("\nEnter Dungeon Master name: ")
             db.add_dungeonmaster(name)
-            print(f"\n{name} has been added as a Dungeon Master.\n")
+            print(f'''\n{name} has been added as a Dungeon Master.
+                  \n''')
         
         elif dungeonmaster_choice == "2":
             dungeonmasters = db.get_all_dungeonmasters()
@@ -330,68 +363,31 @@ while True:
                 for dungeonmaster in dungeonmasters:
                     print(dungeonmaster)
             else:
-                print('''\n
-                      
-                      
-        _   _        _________  ____      ______                    _                                                                          
-        | \ | |       |  _  \  \/  ( )     |  ___|                  | |                                                                         
-        |  \| | ___   | | | | .  . |/ ___  | |_ ___  _   _ _ __   __| |                                                                         
-        | . ` |/ _ \  | | | | |\/| | / __| |  _/ _ \| | | | '_ \ / _` |                                                                         
-        | |\  | (_) | | |/ /| |  | | \__ \ | || (_) | |_| | | | | (_| |_                                                                        
-        \_| \_/\___/  |___/ \_|  |_/ |___/ \_| \___/ \__,_|_| |_|\__,_(_)                                                                       
-                                                                                                                                                
-                                                                                                                                                
-       _____ _                                      _   _              __                      _  ______                ___       _         _ 
-      |_   _| |                                    | | ( )            / _|                    | | |  _  \              |_  |     | |       | |
-        | | | |__   ___ _   _   _ __ ___  _   _ ___| |_|/__   _____  | |_ ___  _   _ _ __   __| | | | | |__ _ _   _      | | ___ | |__  ___| |
-        | | | '_ \ / _ \ | | | | '_ ` _ \| | | / __| __| \ \ / / _ \ |  _/ _ \| | | | '_ \ / _` | | | | / _` | | | |     | |/ _ \| '_ \/ __| |
-        | | | | | |  __/ |_| | | | | | | | |_| \__ \ |_   \ V /  __/ | || (_) | |_| | | | | (_| | | |/ / (_| | |_| | /\__/ / (_) | |_) \__ \_|
-        \_/ |_| |_|\___|\__, | |_| |_| |_|\__,_|___/\__|   \_/ \___| |_| \___/ \__,_|_| |_|\__,_| |___/ \__,_|\__, | \____/ \___/|_.__/|___(_)
-                        __/ |                                                                                 __/ |                          
-                        |___/                                                                                 |___/                           
-                      
-                                                                Z             
-                                     Z                   
-                         .,.,        z           
-                     (((((())    z             
-                    ((('_  _`) '               
-                    ((G   \ |)                 
-                    (((`   " ,                  
-                    .((\.:~:          .--------------.    
-                    __.| `"'.__      | \              |     
-                .~~   `---'   ~.    |  .             :     
-                /                `   |   `-.__________)     
-                |             ~       |  :             :   
-                |                     |  :  |              
-                |    _                |     |   [ ##   :   
-                \    ~~-.            |  ,   oo_______.'   
-                `_   ( \) _____/~~~~ `--___              
-                | ~`-)  ) `-.   `---   ( - a:f -         
-                |   '///`  | `-.                         
-                |     | |  |    `-.                      
-                |     | |  |       `-.                   
-                |     | |\ |                             
-                |     | | \|                             
-                `-.  | |  |                             
-                    `-| '
-                      
-                      \n''')
+                print('''\nNo Dungeon Masters found\n
+                      ''')
                 
         elif dungeonmaster_choice == "3":
             id = input("\nEnter Dungeon Master id: ")
             deleted = db.delete_dungeonmaster(id)
             if deleted:
-                print(f"\nDungeon Master with id {id} has been deleted from the database.\n")
+                print(f'''\nDungeon Master with id {id} has been deleted from the database.
+                      \n''')
             else:
-                print(f"\nDungeon Master with id {id} not found in the database.\n")
+                print(f'''\nDungeon Master with id {id} not found in the database.
+                      \n''')
+                
+        elif dungeonmaster_choice == "4":
+            pass
 
 # ++++++ PLAYER SELECTION +++++++
-    if choice == "2":
+    elif choice == "3":
         print("""
         1. Add Player
         2. Display All Players
-        3. Update Player
-        4. Delete Player
+        3. Display Player Character Info
+        4. Update Player
+        5. Delete Player
+        6. Quit
         """)
         player_choice = input("Enter choice: ")
 
@@ -399,53 +395,25 @@ while True:
             name = input("\nEnter player name: ")
             character_id = input("\nEnter character id: ")
             db.add_player(name, character_id)
-            print(f"\n{name} has been added as a player.\n")
+            print(f'''\n{name} has been added as a player.
+                  \n''')
             
         elif player_choice == "2":
             players = db.get_all_players()
             
             if players:
                 for player in players:
-                    print(player)
+                    character = db.get_character_by_id(player.character_id)
+                    print(f"|| Player ID: {player.id} || Name: {player.name} || Character ID: {character.id}")
             else:
                 print('''\nNo Players found, they must have all died!
-                      
-                                    .:=+*#%%%%%%#*+=:.                                    
-                                 -*%@@@@@@@@@@@@@@@@@@%*-                                 
-                              .*@@@@@@@@@@@@@@@@@@@@@@@@@@*.                              
-                             =@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+                             
-                            =@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+                            
-                           .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.                           
-                           -@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=                           
-                           =@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=                           
-                           :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-                           
-                            @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                            
-                            +@%@@=.    :=#@@@@@@%=:    .=@@%@*                            
-                            .*@@+         =@@@@+         =@@*.                            
-                             %@@+          @@@@.         =@@@.                            
-                            +@@@@-        +@@@@*        -@@@@*                            
-                            *@@@@@@%*+++#@@@%%@@@#+++*#@@@@@@@                            
-                             *@@@@@@@@@@@@@@:.%@@@@@@@@@@@@@%-                            
-                               :-+#@@@@@@@@ :: %@@@@@@@#+=-.                              
-                                   -@@@@@@@@@@@@@@@@@@-                                   
-                        =+=         @@@@@@@@@@@@@@@@@@         =+=.                       
-                       *@@@@+       =@@@@@@@@@@@@@@@@+       +@@@@#                       
-                        @@@@@@=      ..:+.+#--#+.+- .      =%@@@@@.                       
-                     =@@@@@@@@@@*=:                    :=*@@@@@@@@@@+                     
-                     *@@@@@@@@@@@@@@%*=-.        .-=*%@@@@@@@@@@@@@@*                     
-                       .:::::-=+*%@@@@@@@@#*==+#@@@@@@@@%*+=-::::::                       
-                                   .:+%@@@@@@@@@@@@%+:.                                   
-                              .:-+*%@@@@@@@@##%@@@@@@@%*+-:.                              
-                     -#%@@@%@@@@@@@@@@%*=:      :=*#@@@@@@@@@@%@@@%#-                     
-                     #@@@@@@@@@@@%*-.                .-+#@@@@@@@@@@@#                     
-                      --@@@@@@#-                          -#@@@@@@--                      
-                       =@@@@%:                              :%@@@@+                       
-                       -#@#-                                  -#@%-                       
-                                                                                          
-                                                                                        
                       ''')
-                
+         
         elif player_choice == "3":
+            character_id = input("\nEnter Player ID: ")
+            db.display_character_info(character_id)
+                
+        elif player_choice == "4":
             id = input("\nEnter player id: ")
             name = input("Enter new name (leave blank if no change): ")
             character_id = input("Enter character id: ")
@@ -454,27 +422,130 @@ while True:
             updated = db.update_player(player)
             
             if updated:
-                print(f"\nPlayer with id {id} has been updated.\n")
+                print(f'''\nPlayer with ID {id} has been updated.
+                      \n''')
             else:
-                print(f"\nPlayer with id {id} not found in the database.\n") 
-                
-        elif player_choice == "4":
-            id = input("\nEnter player id: ")
+                print(f'''\nPlayer with ID {id} not found in the database.
+                      \n''') 
+            
+        elif player_choice == "5":
+            id = input("\nEnter Player ID: ")
             deleted = db.delete_player(id)
             
             if deleted:
-                print(f"\nPlayer with id {id} has been deleted from the database.\n")
+                print(f'''\nPlayer with ID {id} has been deleted from the database.
+                      \n''')
             else:
-                print(f"\nPlayer with id {id} not found.\n")
-                
+                print(f'''\nPlayer with ID {id} not found.
+                      \n''')
+        
+        elif player_choice == "6":
+            pass   
+           
+# ++++++PLAYERSET SELECTION +++++++                 
+    elif choice == "4":
+        print ("""
+        1. Add Playerset
+        2. Get All Playersets
+        3. Display Player Set Info
+        4. Delete Playerset
+        5. Quit
+        """)
+        playerset_choice = input("Enter choice: ")
+        
+        if playerset_choice == "1":
+            player_1_id = input("Enter player 1 ID: ")
+            player_2_id = input("Enter player 2 ID: ")
+            player_3_id = input("Enter player 3 ID: ")
+            player_4_id = input("Enter player 4 ID: ")
+            db.add_playerset(player_1_id, player_2_id, player_3_id, player_4_id)
+            print(f'''\n
 
+        
+         _    _      _                            _          _   _            _                                                           _           
+        | |  | |    | |                          | |        | | | |          | |                                                         | |          
+        | |  | | ___| | ___ ___  _ __ ___   ___  | |_ ___   | |_| |__   ___  | |_ ___  __ _ _ __ ___     ___ ___  _ __ ___  _ __ __ _  __| | ___  ___ 
+        | |/\| |/ _ \ |/ __/ _ \| '_ ` _ \ / _ \ | __/ _ \  | __| '_ \ / _ \ | __/ _ \/ _` | '_ ` _ \   / __/ _ \| '_ ` _ \| '__/ _` |/ _` |/ _ \/ __|
+        \  /\  /  __/ | (_| (_) | | | | | |  __/ | || (_) | | |_| | | |  __/ | ||  __/ (_| | | | | | | | (_| (_) | | | | | | | | (_| | (_| |  __/\__ \_
+         \/  \/ \___|_|\___\___/|_| |_| |_|\___|  \__\___/   \__|_| |_|\___|  \__\___|\__,_|_| |_| |_|  \___\___/|_| |_| |_|_|  \__,_|\__,_|\___||___/
+                            
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠏⢹⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⡿⠀⠈⣿⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣤⣤⣤⣄⣀⣀⣀⣀⣀⣀⣀⣸⣿⠃⠀⠀⠸⣿⣧⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠿⣿⣿⣛⠛⠛⠛⠛⠛⠛⠋⠀⠀⠀⠀⠻⠛⠛⠛⠛⠛⠛⣻⣿⣿⠿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣾⡿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⢿⣷⣤⡀⠀⠀⠀⠀⠀⠀⠀⣴⣾⡿⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⠁⠀⠀⣠⣴⣦⣄⠀⠀⠈⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⡾⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠃⢀⣴⣾⡿⠋⠛⢿⣷⣤⡀⢹⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⣦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣴⣿⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⣿⣶⡿⠟⠁⠀⠀⠀⠀⠉⠻⣿⣶⣿⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣦⡤⣄⡀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⣠⡾⢩⣿⣿⠟⡁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠟⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢌⠻⣿⣷⡌⢿⣦⡀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⣠⣾⣿⠁⣿⠟⢉⣴⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⠋⠁⠀⠀⠀⠀⠀⠀⢤⡀⠀⠀⠀⠀⠀⠀⠈⠛⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣷⣌⠻⣿⡈⣿⣷⣤⡀⠀⠀⠀
+        ⠀⠀⠀⣼⢻⣿⡟⠐⣡⣾⡿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠳⣶⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣷⣮⡁⢹⣿⡇⣷⡀⠀⠀
+        ⠀⠀⣾⡟⢸⣿⣧⣾⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⢿⣷⣦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⣾⣿⡇⣸⣿⠀⠀
+        ⠀⢰⣿⣧⢸⣿⡿⢋⣴⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣀⡀⠀⡀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣷⣌⠻⣿⡇⣿⣿⡇⠀
+        ⠀⢸⣿⣿⢸⣏⣴⣿⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠈⠻⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣷⣌⠃⣿⣿⡇⠀
+        ⢠⠘⣿⣿⢠⣿⣿⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣘⢿⣿⣦⣿⣿⠇⣀
+        ⣸⡀⢻⣿⣾⡿⢣⣶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡌⠻⣿⣿⡿⢀⣿
+        ⣿⣧⠀⣿⡟⢡⣾⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⠟⠁⠙⢿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣄⠹⣿⠃⣸⣿
+        ⢹⣿⣆⠸⢁⣾⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠛⠁⠀⠀⠀⠀⠙⢿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⣆⠛⣰⣿⡿
+        ⠘⣿⣿⡄⣸⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠼⣿⣿⢀⣿⣿⠇
+        ⡆⠹⣿⣷⣿⣿⠁⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣦⡀⠀⠀⠀⢀⣿⣿⣿⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⡀⢻⣿⣾⣿⠏⢠
+        ⢻⣄⠙⢿⣿⡇⢀⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠹⣿⣿⣿⣦⣀⢀⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠘⣿⡿⠁⣠⣿
+        ⠸⣿⣷⣄⢻⡇⢸⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣶⣿⣿⣿⣶⣤⣄⡀⠀⠀⠀⠀⠀⠀⠈⠻⣿⣿⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⢰⡟⣠⣾⣿⠇
+        ⠀⠹⣿⣿⣦⡀⢸⣿⣿⢸⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⡿⠿⠀⠙⠻⣿⣿⣿⣿⣷⣶⣤⣤⣤⣶⣶⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⣠⡟⢸⣿⣿⢠⣾⣿⣿⠋⠀
+        ⠀⠀⣿⠻⣿⣿⣌⣿⣿⠀⢿⣧⠀⠀⠀⠀⠀⣠⣶⣿⣿⡟⠀⠀⠀⠀⠀⠀⠉⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀⣰⣿⠁⣼⣿⣣⣿⣿⠟⣱⠆⠀
+        ⠀⠀⠘⣦⡌⠙⢿⣿⣿⡆⢸⣿⣆⠀⠀⠀⢰⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠙⠛⠛⠛⠛⠉⠉⠀⠈⠻⣿⣿⣿⡗⠀⠀⠀⠀⣠⣿⡏⢀⣿⣿⠿⠋⢠⣶⠏⠀⠀
+        ⠀⠀⠀⠘⣿⣷⣤⣈⠛⢷⡈⣿⣿⡶⣄⠀⠘⠛⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠋⠀⠀⠀⣠⢶⣿⣿⠇⠸⢋⣠⣤⣾⡿⠃⠀⠀⠀
+        ⠀⠀⠀⠀⠈⠻⢿⣿⣿⣶⣄⡸⣿⣿⡘⢿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⠃⣼⣿⢏⣠⣶⣿⣿⡿⠛⠁⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⢽⠻⢿⣿⣿⣾⣿⣧⡈⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣿⡿⢃⣼⣿⣿⣿⣿⠿⠛⣩⠆⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠈⠻⣦⣤⣀⣉⠉⠛⠛⠂⠛⢿⣿⣦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣴⣿⡿⠛⠁⠚⣉⣁⣀⣤⣤⣶⠟⠁⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠿⣿⣿⣿⣿⣿⣿⣷⣾⡿⠿⠿⠛⣒⣠⣤⣶⣶⠶⠶⣶⣤⣴⡶⠶⢶⣶⣶⣦⣜⣛⠛⠿⠿⠷⣿⣿⣿⣿⣿⣿⡿⠟⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⢯⣉⣉⠉⠉⢉⣁⣤⣴⣶⣿⣿⣿⠟⠉⣡⣴⡾⠛⠉⠉⠻⢷⣦⣈⠛⢿⣿⣿⣿⣶⣦⣤⣀⣀⣉⣉⣥⣤⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠛⢿⣿⣿⣿⣿⣿⡿⠟⠋⣀⣴⣿⠟⠁⠀⠀⠀⠀⠀⠀⠙⢿⣷⣄⡈⠛⠻⠿⣿⣿⣿⣿⠿⠛⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠾⣿⢋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⡿⠂⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀                                                                                                          
+                  \n''')
+        
+        elif playerset_choice == '2':
+            playersets = db.get_all_playersets()
+            if not playersets:
+                print("No playersets found.")
+            else:
+                print("Playersets:")
+                for playerset in playersets:
+                    print(f"| ID: {playerset[0]} | Player 1 ID: {playerset[1]} | Player 2 ID: {playerset[2]} | "
+                        f"Player 3 ID: {playerset[3]}, | Player 4 ID: {playerset[4]}")
+                    
+        elif playerset_choice == "3":
+            playerset_id = input("Enter playerset ID: ")
+            db.display_player_set_info(playerset_id)
+            
+            
+        elif playerset_choice == "4":
+            id = input("\nEnter playerset ID: ")
+            deleted = db.delete_playerset(id)
+            
+            if deleted:
+                print(f'''\nPlayerset with id {id} has been deleted.
+                      \n''')
+            else:
+                print(f'''\nPlayerset with id {id} not found in the database.
+                      \n''')
+        
+        elif playerset_choice == "5":
+            pass
+        
 # ++++++ CREATE CHARACTER SELECTION +++++++
-    if choice == "3":
+    elif choice == "5":
         print("""
         1. Add Character
         2. Display All Characters
         3. Update Character
         4. Delete Character
+        5. Quit
         """)
         character_choice = input("Enter choice: ")
         
@@ -489,9 +560,9 @@ while True:
             
             character = Character(None, name, hp, strength, dexterity, intelligence, charisma, wisdom)
             db.add_character(character)
-            print(f"\n{character.name} has been added to the database.\n")
+            print(f'''\n{character.name} has been added to the database.
+                  \n''')
             
-        
         elif character_choice == "2":
             characters = db.get_all_characters()
             
@@ -499,75 +570,8 @@ while True:
                 for character in characters:
                     print(character)
             else:
-                print('''\n
-                      
-         _   _         _____ _                          _                  ______                   _                                          
-        | \ | |       /  __ \ |                        | |                |  ___|                  | |                                         
-        |  \| | ___   | /  \/ |__   __ _ _ __ __ _  ___| |_ ___ _ __ ___  | |_ ___  _   _ _ __   __| |                                         
-        | . ` |/ _ \  | |   | '_ \ / _` | '__/ _` |/ __| __/ _ \ '__/ __| |  _/ _ \| | | | '_ \ / _` |                                         
-        | |\  | (_) | | \__/\ | | | (_| | | | (_| | (__| ||  __/ |  \__ \ | || (_) | |_| | | | | (_| |_                                        
-        \_| \_/\___/   \____/_| |_|\__,_|_|  \__,_|\___|\__\___|_|  |___/ \_| \___/ \__,_|_| |_|\__,_(_)                                       
-                                                                                                                                            
-                                                                                                                                            
-         _____                           _          _            _            _    _                                   _   _       _ _         
-        /  ___|                         | |        | |          | |          | |  (_)                                 | | (_)     (_) |        
-        \ `--.  ___  ___ _ __ ___  ___  | |_ ___   | |__   ___  | | __ _  ___| | ___ _ __   __ _    ___ _ __ ___  __ _| |_ ___   ___| |_ _   _ 
-         `--. \/ _ \/ _ \ '_ ` _ \/ __| | __/ _ \  | '_ \ / _ \ | |/ _` |/ __| |/ / | '_ \ / _` |  / __| '__/ _ \/ _` | __| \ \ / / | __| | | |
-        /\__/ /  __/  __/ | | | | \__ \ | || (_) | | |_) |  __/ | | (_| | (__|   <| | | | | (_| | | (__| | |  __/ (_| | |_| |\ V /| | |_| |_| |
-        \____/ \___|\___|_| |_| |_|___/  \__\___/  |_.__/ \___| |_|\__,_|\___|_|\_\_|_| |_|\__, |  \___|_|  \___|\__,_|\__|_| \_/ |_|\__|\__, |
-                                                                                            __/ |                                         __/ |
-                                                                                           |___/                                         |___/ 
-                      
-                                    .....:::------:::.                                 
-                             .:::------:----:...::::::--====--:.                          
-                        .::::::......::::.................:::--==-:.                      
-                     .:-:.......................................::-==-:.                  
-                  .::...............................................:--=-:                
-                .:.....................................................:-==-              
-               :......................................::-.......... .....::-=-            
-             :: .................:................::....:-:.................:-=:          
-            -.    ......... ....:-.......     .....-......--.................:-=-         
-          .: ...................:-.................:=......:-:.................:==        
-         :. .........::.........--..................+-.......-:.................:==       
-        :. .........:-..........--..:...............-*-:......-:.................:==      
-       -. ..........=:.......::.+=:.-...............:#+-:......--.................:==     
-      -. ..........==:.......=::#=:.=:...............+#=-:......--.................-=-    
-     :. ..........:+-.......:-.=#=-.==:..............-*#==:......-:...........::...:-+.   
-    :. ...........==:......:=:.*#==:++-:.............:***==-......=::-::....--::-...:==   
-   .: ...........:+=:......=-.-**+=:=*=-:.............+*+*==-:....:==:-----=--::=....-=:  
-   -  ...........-+-......:+-:**=*=--#*=-:............-#++*==-:....-=-::-=+*-:::=:...-==  
-  .: ...:-.......==-......+=:=*+=+==-##+=-:...........:**=+*==-:....==::-*-:==-:=:...:=+. 
-  -::-:--=:......==-.....=*--#+===+=-***==-:...........+*==+*+==:...-=--*=:..:=+=.....==- 
-  --:-+=-+:......+=:....:#=-**=====+==*+*===:........:-=*====*+==-:..=-=-.............-== 
- :.:-+::--.......+=:...:*+=**======++-**+*===-:.......+=#+====**===:.-:...............-=+ 
- : .-:...........+=:..:+*=**========+==*+=*====-:.-==-++#*+++++*#*++=:=...............-=+ 
- : .............:+=:..+#+#*++++++++++****==++==+=-::..-+**=======**===+...............-=+ 
- :..............:+=::*#*#+============++*+===+==**+=--=+*#++======+*+=+:..............-=+ 
- :..............:+=:+*#*+======++++++===*+=====++*+++**#%%##%%%%%%%%%%#+..............-== 
- -...............+=+***=++**####%%##*=======++++=++==+*+--+%@@@@@@%====+..............-=- 
- ::..:...........+**#%###*#%@@@@@@%===========++=======-:+%####*###+===+..............-=- 
-  -..-:..........=**===:  :+%%%##%%+=====================**+======#====+.............:=+. 
-  -..:=:.........-#+======#*++++++*+=========++++=========*======+*====+.............:=+  
-  .:.:+-..........**======*+======*========================+++==+=====-=.............:==  
-   -:.==:.........=*=======++====++============================--::....-.............==:  
-    -.=+-.........:*================================----:::............=.............=+   
-     -:==:..:..::.:=+.................................................:=::.......:..:==   
-      -=:=::::::::::*=................................................+-:-:::::::::::-:   
-       ----:::::::::=+-..............................................=*::-:::::::::::::   
-        = =::::::::::*+:...........................................:++*::-::::::::::::-   
-          .-:::::::::=++-....................--======............-+++++::-::::::::::::-   
-           +:::::::::-*+++=:.................-::::::..........-=+**++++:-:::::::::::::=   
-           =-:::::::::*++++**+==-:........................:-=*+++*+++++:=:::::::::::::=   
-           -::::::::::++++**++++++*++=-::.............:-===--+++++*++++:=:::::::::::::-:  
-           -:-::::::::=+++**+++++++*++++**==---:::-====------+=-++*++++:=::::::::::::::-  
-           -:=::::::::=+++*++++++++*++++=++-----==------::..::...:-+*++:=::::::::::::::=  
-           -:=::::::::-++++++++++++**=:..-=:::::::::......:-.......:***:=::::::::::::::=. 
-           -:--::::::::*++=++++****=:.....:-:...........:-..........=+*:=:::::::::::::::- 
-           =:-=::::::::*++-+***++=:.........:-.........-:...........-+*:=:::::::::::::::- 
-                      
-                      \n''')
+                print('''\nNo Character found in database!\n''')
                 
-            
         elif character_choice == "3":
             id = input("\nEnter character id: ")
             name = input("Enter new name (leave blank if no change): ")
@@ -582,22 +586,28 @@ while True:
             updated = db.update_character(character)
             
             if updated:
-                print(f"\nCharacter with id {id} has been updated.\n")
+                print(f'''\nCharacter with id {id} has been updated.
+                      \n''')
             else:
-                print(f"\nCharacter with id {id} not found in the database.\n")
-                
-                
+                print(f'''\nCharacter with id {id} not found in the database.
+                      \n''')
+                     
         elif character_choice == "4":
             id = input("\nEnter character id: ")
             deleted = db.delete_character(id)
             
             if deleted:
-                print(f"\nCharacter with id {id} has been deleted from the database.\n")
+                print(f'''\nCharacter with id {id} has been deleted from the database.
+                      \n''')
             else:
-                print(f"\nCharacter with id {id} not found in the database.\n")
+                print(f'''\nCharacter with id {id} not found in the database.
+                      \n''')
+                
+        elif character_choice == "5":
+            pass
             
 # +++++ EXIT +++++     
-    elif choice == "4":
+    elif choice == "6":
         print('''\n
               
        _____ _                 _           __                       _                                    
@@ -634,6 +644,3 @@ while True:
                     
                     \n''')
         break
-    
-    # else:
-    #     print("\nInvalid choice. Please try again.\n")
