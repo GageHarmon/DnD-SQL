@@ -24,10 +24,9 @@ You can add a new player set, get all player sets, get info about a specific pla
 
 1. Clone the repository to your local machine.
 2. Navigate to the project directory.
-3. Create a virtual environment: python -m venv env.
-4. Activate the virtual environment: source env/bin/activate (on Linux/MacOS) or .\env\Scripts\activate (on Windows).
-5. Install the dependencies: pip install -r requirements.txt.
-6. Run the program: python setup.py.
+3. Create a virtual environment: pipenv install
+4. Install the dependencies: _please see Pipfile_
+5. Run the program: python setup.py.
 
 # Usage
 
@@ -44,8 +43,11 @@ Add a new dungeon master, display all dungeon masters, delete a dungeon master, 
 Player management:
 Add a new player, display all players, display a player's character information, update a player's information, delete a player
 
-Player set management:
-Add a new player set, get all player sets, get player set info, delete a player set
+Teamm management:
+Add a new team, get all teams, get team info, delete a team
+
+Character management:
+Add a new character, display all characters, display a character's information, update a character's information, delete a character
 
 # Credits
 
