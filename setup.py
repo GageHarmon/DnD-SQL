@@ -1,9 +1,9 @@
 import sqlite3
+from colorama import Fore, Style
 from classes import Character, DungeonMaster, Players, Campaigns
 
 # Define database operations
 class Characterdb:
-    
     def __init__(self, db):
         self.conn = sqlite3.connect(db)
         self.c = self.conn.cursor()
@@ -13,9 +13,9 @@ class Characterdb:
         self.c.execute('''CREATE TABLE IF NOT EXISTS campaigns (
                             id INTEGER PRIMARY KEY,
                             name TEXT,
-                            playerset_id INTEGER,
+                            team_id INTEGER,
                             dungeonmaster_id INTEGER,
-                            FOREIGN KEY (playerset_id) REFERENCES playerset(id),
+                            FOREIGN KEY (playerset_id) REFERENCES team(id),
                             FOREIGN KEY (dungeonmaster_id) REFERENCES dungeonmaster(id)
                             )''')
         
@@ -26,7 +26,7 @@ class Characterdb:
                             FOREIGN KEY (campaign_id) REFERENCES campaign(id)
                             )''')
         
-        self.c.execute('''CREATE TABLE IF NOT EXISTS playerset (
+        self.c.execute('''CREATE TABLE IF NOT EXISTS team (
                             id INTEGER PRIMARY KEY,
                             player_1_id INTEGER,
                             player_2_id INTEGER,
@@ -74,9 +74,9 @@ class Characterdb:
         self.c.execute('''SELECT * FROM campaigns WHERE id=?''', (campaign_id,))
         campaign = self.c.fetchone()
         if not campaign:
-            print("Campaign not found!")
+            print(f'''Campaign not found!''')
         else:
-            print(f"| Campaign Name: {campaign[1]}")
+            print(f'''| Campaign Name: {campaign[1]}''')
 
             # get dungeon master info
             self.c.execute('''SELECT * FROM dungeonmaster WHERE id=?''', (campaign[3],))
@@ -85,15 +85,15 @@ class Characterdb:
                   ''')
             
             # get player info
-            self.c.execute('''SELECT * FROM playerset WHERE id=?''', (campaign[2],))
-            playerset = self.c.fetchone()
+            self.c.execute('''SELECT * FROM team WHERE id=?''', (campaign[2],))
+            team = self.c.fetchone()
             print("Players:")
             for i in range(1, 5):
-                player_id = playerset[i]
+                player_id = team[i]
                 if player_id:
                     self.c.execute('''SELECT * FROM players WHERE id=?''', (player_id,))
                     player = self.c.fetchone()
-                    print(f"  - {player[1]} | (Character ID: {player[2]})")
+                    print(f'''  - {player[1]} | (Character ID: {player[2]})''')
 
     def delete_campaigns(self, id):
         self.c.execute("DELETE FROM campaigns WHERE id=?", (id,))
@@ -105,7 +105,7 @@ class Characterdb:
     def add_dungeonmaster(self, name):
         self.c.execute("INSERT INTO dungeonmaster VALUES (NULL, ?)", (name,))
         self.conn.commit()
-    
+        
     def delete_dungeonmaster(self, id):
         self.c.execute("DELETE FROM dungeonmaster WHERE id=?", (id,))
         self.conn.commit()
@@ -128,10 +128,10 @@ class Characterdb:
         self.conn.commit()
     
     def update_player(self, player):
-        self.c.execute("""UPDATE players
+        self.c.execute('''UPDATE players
                         SET name = ?,
                             character_id = ?
-                         WHERE id = ?""",
+                         WHERE id = ?''',
                    (player.name,
                     player.character_id,
                     player.id))
@@ -158,42 +158,42 @@ class Characterdb:
         self.c.execute("SELECT * FROM players WHERE id=?", (player_id,))
         row = self.c.fetchone()
         if not row:
-            print("No player found with the given ID.")
+            print('''No player found with the given ID.''')
             return
         player = Players(row[0], row[1], row[2])
         character_id = player.character_id
         self.c.execute("SELECT * FROM characters WHERE id=?", (character_id,))
         row = self.c.fetchone()
         if not row:
-            print("No character found with the given ID.")
+            print('''No character found with the given ID.''')
             return
         character = Character(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
         print(character)
         
-# ++++++++++++++++++++ PLAYERSET Editing ++++++++++++++++++++
-    def add_playerset(self, player_1_id, player_2_id, player_3_id, player_4_id):
-        self.c.execute("INSERT INTO playerset VALUES (NULL, ?, ?, ?, ?)",
+# ++++++++++++++++++++ TEAM Editing ++++++++++++++++++++
+    def add_team(self, player_1_id, player_2_id, player_3_id, player_4_id):
+        self.c.execute("INSERT INTO team VALUES (NULL, ?, ?, ?, ?)",
                        (player_1_id, player_2_id, player_3_id, player_4_id))
-        playerset_id = self.c.lastrowid
+        team_id = self.c.lastrowid
         self.conn.commit()
-        return playerset_id
+        return team_id
     
-    def get_all_playersets(self):
-        self.c.execute("SELECT * FROM playerset")
+    def get_all_teams(self):
+        self.c.execute("SELECT * FROM team")
         return self.c.fetchall()
     
-    def delete_playerset(self, id):
-        self.c.execute("DELETE FROM playerset WHERE id=?", (id,))
+    def delete_team(self, id):
+        self.c.execute("DELETE FROM team WHERE id=?", (id,))
         self.conn.commit()
         return self.c.rowcount
     
     # ++++++ JOIN BUILT WITH THE HELP OF GPT ++++++
-    def display_player_set_info(self, player_set_id):
+    def display_team_info(self, team_id):
         # Retrieve player IDs from the player set
-        self.c.execute("SELECT player_1_id, player_2_id, player_3_id, player_4_id FROM playerset WHERE id=?", (player_set_id,))
+        self.c.execute("SELECT player_1_id, player_2_id, player_3_id, player_4_id FROM team WHERE id=?", (team_id,))
         player_ids = self.c.fetchone()
         if not player_ids:
-            print(f"No player set with ID {player_set_id} exists.")
+            print(f'''No player set with ID {team_id} exists.''')
             return
 
         # ++++++ Retrieve player information for each player in the set +++++++++++
@@ -204,17 +204,17 @@ class Characterdb:
                         "WHERE p.id=?", (player_id,))
             player_info = self.c.fetchone()
             if player_info:
-                print(f"|| Player: {player_info[0]}")
-                print(f"|| Character: {player_info[1]}")
-                print(f"|| HP: {player_info[2]}")
-                print(f"|| Strength: {player_info[3]}")
-                print(f"|| Dexterity: {player_info[4]}")
-                print(f"|| Intelligence: {player_info[5]}")
-                print(f"|| Charisma: {player_info[6]}")
-                print(f"|| Wisdom: {player_info[7]}")
+                print(f'''|| Player: {player_info[0]}''')
+                print(f'''|| Character: {player_info[1]}''')
+                print(f'''|| HP: {player_info[2]}''')
+                print(f'''|| Strength: {player_info[3]}''')
+                print(f'''|| Dexterity: {player_info[4]}''')
+                print(f'''|| Intelligence: {player_info[5]}''')
+                print(f'''|| Charisma: {player_info[6]}''')
+                print(f'''|| Wisdom: {player_info[7]}''')
                 print()
             else:
-                print(f"|| No player with ID {player_id} exists.")
+                print(f'''|| No player with ID {player_id} exists.''')
 
 # ++++++++++++++++++++ Character Editing ++++++++++++++++++++
 
@@ -224,7 +224,7 @@ class Characterdb:
         self.conn.commit()
         
     def update_character(self, character):
-        self.c.execute("""UPDATE characters
+        self.c.execute('''UPDATE characters
                         SET name = ?,
                             hp = ?,
                             strength = ?,
@@ -232,7 +232,7 @@ class Characterdb:
                             intelligence = ?,
                             charisma = ?,
                             wisdom = ?
-                         WHERE id = ?""",
+                         WHERE id = ?''',
                    (character.name,
                     character.hp,
                     character.strength,
@@ -276,7 +276,13 @@ db =  Characterdb("./dnd.db")
 db.create_tables()
 
 # ++++++++++++++ CLI prompts and inputs +++++++++++++++
-print('''
+GREEN = Fore.GREEN
+RED = Fore.RED
+BLUE = Fore.BLUE
+YELLOW = Fore.YELLOW
+MAGENTA = Fore.MAGENTA
+RESET = Style.RESET_ALL
+print(f'{GREEN}' '''
  _____                                               _____      
 |  _  \                                      ___    |  _  \                                
 | | | |_   _ _ __   __ _  ___  ___  _ __    ( _ )   | | | |_ __ __ _  __ _  ___  _ __  ___ 
@@ -285,7 +291,8 @@ print('''
 |___/  \__,_|_| |_|\__, |\___|\___/|_| |_|  \___/\/ |___/ |_|  \__,_|\__, |\___/|_| |_|___/
                     __/ |                                             __/ |                
                    |___/                                             |___/                 
-                   
+ ''' f'{RESET}')                
+print(f'{RED}' '''
    _____ _                          _              _____ _               _                 
   /  __ \ |                        | |            /  ___| |             | |                
   | /  \/ |__   __ _ _ __ __ _  ___| |_ ___ _ __  \ `--.| |__   ___  ___| |_ ___           
@@ -293,27 +300,27 @@ print('''
   | \__/\ | | | (_| | | | (_| | (__| ||  __/ |    /\__/ / | | |  __/  __/ |_\__ \          
    \____/_| |_|\__,_|_|  \__,_|\___|\__\___|_|    \____/|_| |_|\___|\___|\__|___/  
    
-''')
+''' f'{RESET}')
 
 while True:
-    print("\nPlease choose an option:\n")
+    print(f'{MAGENTA}''''\nPlease choose an option:\n''')
     print("\n1. Campaign setup\n")
     print("\n2. Edit Dungeon Masters\n")
     print("\n3. Edit Players\n")
-    print("\n4. Edit Playersets\n")
+    print("\n4. Edit Teams\n")
     print("\n5. Edit Characters\n")
-    print("6. Quit")
-    
-    choice = input("\nEnter your choice (1-6): ")
+    print('''6. Quit
+          ''' f'{RESET}')
+    choice = input(f'''\nEnter your choice (1-6): ''')
 # ++++++ CAMPAIGN SELECTION +++++++++
     if choice == "1":
-        print("""
+        print(f'{MAGENTA}''''
         1. Add New Campaign
         2. Get All Campaigns
         3. Delete Campaigns
         4. Quit
-        """)
-        campaign_choice = input('Enter choice: ')
+        '''f'{RESET}')
+        campaign_choice = input(f'''Enter choice: ''')
         
         if campaign_choice == "1":
             name = input("Enter campaign name: ")
@@ -334,22 +341,22 @@ while True:
             id = input("\nEnter Campaign ID: ")
             deleted = db.delete_campaigns(id)
             if deleted:
-                print(f"\nCampaign with id {id} has been deleted from the database.\n")
+                print(f'''\nCampaign with id {id} has been deleted from the database.\n''')
             else:
-                print(f"\nCampaign with id {id} not found in the database.\n")
+                print(f'''\nCampaign with id {id} not found in the database.\n''')
                 
         elif campaign_choice == "4":
             pass
                       
 # ++++++ DUNGEON MASTER SELECTION +++++++    
     elif choice == "2":
-        print("""
+        print(f'{MAGENTA}''''
         1. Add Dungeon Master
         2. Display All Dungeon Masters
         3. Delete Dungeon Master
         4. Quit
-        """)
-        dungeonmaster_choice = input("Enter choice: ")
+        '''f'{RESET}')
+        dungeonmaster_choice = input(f'{YELLOW}''''Enter choice: '''f'{RESET}')
         
         if dungeonmaster_choice == "1":
             name = input("\nEnter Dungeon Master name: ")
@@ -381,15 +388,15 @@ while True:
 
 # ++++++ PLAYER SELECTION +++++++
     elif choice == "3":
-        print("""
+        print(f'{MAGENTA}'"""
         1. Add Player
         2. Display All Players
         3. Display Player Character Info
         4. Update Player
         5. Delete Player
         6. Quit
-        """)
-        player_choice = input("Enter choice: ")
+        """f'{RESET}')
+        player_choice = input(f'{YELLOW}''''Enter choice: '''f'{RESET}')
 
         if player_choice == "1":
             name = input("\nEnter player name: ")
@@ -404,7 +411,7 @@ while True:
             if players:
                 for player in players:
                     character = db.get_character_by_id(player.character_id)
-                    print(f"|| Player ID: {player.id} || Name: {player.name} || Character ID: {character.id}")
+                    print(f''' || Player ID: {player.id} || Name: {player.name} || Character ID: {character.id}''')
             else:
                 print('''\nNo Players found, they must have all died!
                       ''')
@@ -444,110 +451,69 @@ while True:
            
 # ++++++PLAYERSET SELECTION +++++++                 
     elif choice == "4":
-        print ("""
-        1. Add Playerset
-        2. Get All Playersets
-        3. Display Player Set Info
-        4. Delete Playerset
+        print (f'{MAGENTA}'"""
+        1. Add Team
+        2. Get All Teams
+        3. Display Team Info
+        4. Delete Team
         5. Quit
-        """)
-        playerset_choice = input("Enter choice: ")
+        """f'{RESET}')
+        team_choice = input(f'{YELLOW}''''Enter choice: '''f'{RESET}')
         
-        if playerset_choice == "1":
+        if team_choice == "1":
             player_1_id = input("Enter player 1 ID: ")
             player_2_id = input("Enter player 2 ID: ")
             player_3_id = input("Enter player 3 ID: ")
             player_4_id = input("Enter player 4 ID: ")
-            db.add_playerset(player_1_id, player_2_id, player_3_id, player_4_id)
-            print(f'''\n
-
-        
+            db.add_team(player_1_id, player_2_id, player_3_id, player_4_id)
+            print(f'{RED}''''\n
          _    _      _                            _          _   _            _                                                           _           
         | |  | |    | |                          | |        | | | |          | |                                                         | |          
         | |  | | ___| | ___ ___  _ __ ___   ___  | |_ ___   | |_| |__   ___  | |_ ___  __ _ _ __ ___     ___ ___  _ __ ___  _ __ __ _  __| | ___  ___ 
         | |/\| |/ _ \ |/ __/ _ \| '_ ` _ \ / _ \ | __/ _ \  | __| '_ \ / _ \ | __/ _ \/ _` | '_ ` _ \   / __/ _ \| '_ ` _ \| '__/ _` |/ _` |/ _ \/ __|
         \  /\  /  __/ | (_| (_) | | | | | |  __/ | || (_) | | |_| | | |  __/ | ||  __/ (_| | | | | | | | (_| (_) | | | | | | | | (_| | (_| |  __/\__ \_
-         \/  \/ \___|_|\___\___/|_| |_| |_|\___|  \__\___/   \__|_| |_|\___|  \__\___|\__,_|_| |_| |_|  \___\___/|_| |_| |_|_|  \__,_|\__,_|\___||___/
-                            
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠏⢹⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⡿⠀⠈⣿⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣤⣤⣤⣄⣀⣀⣀⣀⣀⣀⣀⣸⣿⠃⠀⠀⠸⣿⣧⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠿⣿⣿⣛⠛⠛⠛⠛⠛⠛⠋⠀⠀⠀⠀⠻⠛⠛⠛⠛⠛⠛⣻⣿⣿⠿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣾⡿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⢿⣷⣤⡀⠀⠀⠀⠀⠀⠀⠀⣴⣾⡿⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⠁⠀⠀⣠⣴⣦⣄⠀⠀⠈⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⡾⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠃⢀⣴⣾⡿⠋⠛⢿⣷⣤⡀⢹⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⣦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣴⣿⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⣿⣶⡿⠟⠁⠀⠀⠀⠀⠉⠻⣿⣶⣿⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣦⡤⣄⡀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⣠⡾⢩⣿⣿⠟⡁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠟⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢌⠻⣿⣷⡌⢿⣦⡀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⣠⣾⣿⠁⣿⠟⢉⣴⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⠋⠁⠀⠀⠀⠀⠀⠀⢤⡀⠀⠀⠀⠀⠀⠀⠈⠛⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣷⣌⠻⣿⡈⣿⣷⣤⡀⠀⠀⠀
-        ⠀⠀⠀⣼⢻⣿⡟⠐⣡⣾⡿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠳⣶⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣷⣮⡁⢹⣿⡇⣷⡀⠀⠀
-        ⠀⠀⣾⡟⢸⣿⣧⣾⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⢿⣷⣦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⣾⣿⡇⣸⣿⠀⠀
-        ⠀⢰⣿⣧⢸⣿⡿⢋⣴⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣀⡀⠀⡀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣷⣌⠻⣿⡇⣿⣿⡇⠀
-        ⠀⢸⣿⣿⢸⣏⣴⣿⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠈⠻⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣷⣌⠃⣿⣿⡇⠀
-        ⢠⠘⣿⣿⢠⣿⣿⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣘⢿⣿⣦⣿⣿⠇⣀
-        ⣸⡀⢻⣿⣾⡿⢣⣶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡌⠻⣿⣿⡿⢀⣿
-        ⣿⣧⠀⣿⡟⢡⣾⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⠟⠁⠙⢿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣄⠹⣿⠃⣸⣿
-        ⢹⣿⣆⠸⢁⣾⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠛⠁⠀⠀⠀⠀⠙⢿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⣆⠛⣰⣿⡿
-        ⠘⣿⣿⡄⣸⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠼⣿⣿⢀⣿⣿⠇
-        ⡆⠹⣿⣷⣿⣿⠁⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣦⡀⠀⠀⠀⢀⣿⣿⣿⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⡀⢻⣿⣾⣿⠏⢠
-        ⢻⣄⠙⢿⣿⡇⢀⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠹⣿⣿⣿⣦⣀⢀⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠘⣿⡿⠁⣠⣿
-        ⠸⣿⣷⣄⢻⡇⢸⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣶⣿⣿⣿⣶⣤⣄⡀⠀⠀⠀⠀⠀⠀⠈⠻⣿⣿⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⢰⡟⣠⣾⣿⠇
-        ⠀⠹⣿⣿⣦⡀⢸⣿⣿⢸⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⡿⠿⠀⠙⠻⣿⣿⣿⣿⣷⣶⣤⣤⣤⣶⣶⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⣠⡟⢸⣿⣿⢠⣾⣿⣿⠋⠀
-        ⠀⠀⣿⠻⣿⣿⣌⣿⣿⠀⢿⣧⠀⠀⠀⠀⠀⣠⣶⣿⣿⡟⠀⠀⠀⠀⠀⠀⠉⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀⣰⣿⠁⣼⣿⣣⣿⣿⠟⣱⠆⠀
-        ⠀⠀⠘⣦⡌⠙⢿⣿⣿⡆⢸⣿⣆⠀⠀⠀⢰⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠙⠛⠛⠛⠛⠉⠉⠀⠈⠻⣿⣿⣿⡗⠀⠀⠀⠀⣠⣿⡏⢀⣿⣿⠿⠋⢠⣶⠏⠀⠀
-        ⠀⠀⠀⠘⣿⣷⣤⣈⠛⢷⡈⣿⣿⡶⣄⠀⠘⠛⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠋⠀⠀⠀⣠⢶⣿⣿⠇⠸⢋⣠⣤⣾⡿⠃⠀⠀⠀
-        ⠀⠀⠀⠀⠈⠻⢿⣿⣿⣶⣄⡸⣿⣿⡘⢿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⠃⣼⣿⢏⣠⣶⣿⣿⡿⠛⠁⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⢽⠻⢿⣿⣿⣾⣿⣧⡈⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣿⡿⢃⣼⣿⣿⣿⣿⠿⠛⣩⠆⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠈⠻⣦⣤⣀⣉⠉⠛⠛⠂⠛⢿⣿⣦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣴⣿⡿⠛⠁⠚⣉⣁⣀⣤⣤⣶⠟⠁⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠿⣿⣿⣿⣿⣿⣿⣷⣾⡿⠿⠿⠛⣒⣠⣤⣶⣶⠶⠶⣶⣤⣴⡶⠶⢶⣶⣶⣦⣜⣛⠛⠿⠿⠷⣿⣿⣿⣿⣿⣿⡿⠟⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⢯⣉⣉⠉⠉⢉⣁⣤⣴⣶⣿⣿⣿⠟⠉⣡⣴⡾⠛⠉⠉⠻⢷⣦⣈⠛⢿⣿⣿⣿⣶⣦⣤⣀⣀⣉⣉⣥⣤⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠛⢿⣿⣿⣿⣿⣿⡿⠟⠋⣀⣴⣿⠟⠁⠀⠀⠀⠀⠀⠀⠙⢿⣷⣄⡈⠛⠻⠿⣿⣿⣿⣿⠿⠛⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠾⣿⢋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⡿⠂⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀                                                                                                          
-                  \n''')
+         \/  \/ \___|_|\___\___/|_| |_| |_|\___|  \__\___/   \__|_| |_|\___|  \__\___|\__,_|_| |_| |_|  \___\___/|_| |_| |_|_|  \__,_|\__,_|\___||___/                                                                                                             
+                  \n'''f'{RESET}')
         
-        elif playerset_choice == '2':
-            playersets = db.get_all_playersets()
-            if not playersets:
-                print("No playersets found.")
+        elif team_choice == '2':
+            teams = db.get_all_teams()
+            if not teams:
+                print("No teams found.")
             else:
-                print("Playersets:")
-                for playerset in playersets:
-                    print(f"| ID: {playerset[0]} | Player 1 ID: {playerset[1]} | Player 2 ID: {playerset[2]} | "
-                        f"Player 3 ID: {playerset[3]}, | Player 4 ID: {playerset[4]}")
+                print("Teams:")
+                for team in teams:
+                    print(f'''| ID: {team[0]} | Player 1 ID: {team[1]} | Player 2 ID: {team[2]} | '''
+                    f'''Player 3 ID: {team[3]} | Player 4 ID: {team[4]}''')
                     
-        elif playerset_choice == "3":
-            playerset_id = input("Enter playerset ID: ")
-            db.display_player_set_info(playerset_id)
+        elif team_choice == "3":
+            team_id = input("Enter Team ID: ")
+            db.display_team_info(team_id)
             
             
-        elif playerset_choice == "4":
-            id = input("\nEnter playerset ID: ")
+        elif team_choice == "4":
+            id = input("\nEnter Team ID: ")
             deleted = db.delete_playerset(id)
             
             if deleted:
-                print(f'''\nPlayerset with id {id} has been deleted.
+                print(f'''\nTeam with id {id} has been deleted.
                       \n''')
             else:
-                print(f'''\nPlayerset with id {id} not found in the database.
+                print(f'''\nTeam with id {id} not found in the database.
                       \n''')
         
-        elif playerset_choice == "5":
+        elif team_choice == "5":
             pass
         
 # ++++++ CREATE CHARACTER SELECTION +++++++
     elif choice == "5":
-        print("""
+        print(f'{MAGENTA}'"""
         1. Add Character
         2. Display All Characters
         3. Update Character
         4. Delete Character
         5. Quit
-        """)
-        character_choice = input("Enter choice: ")
+        """f'{RESET}')
+        character_choice = input(f'{YELLOW}''''Enter choice: '''f'{RESET}')
         
         if character_choice == "1":
             name = input("\nEnter character name: ")
@@ -570,7 +536,7 @@ while True:
                 for character in characters:
                     print(character)
             else:
-                print('''\nNo Character found in database!\n''')
+                print(f'''\nNo Character found in database!\n''')
                 
         elif character_choice == "3":
             id = input("\nEnter character id: ")
@@ -608,7 +574,7 @@ while True:
             
 # +++++ EXIT +++++     
     elif choice == "6":
-        print('''\n
+        print(f'{BLUE}''''\n
               
        _____ _                 _           __                       _                                    
       |_   _| |               | |         / _|                     (_)                                   
@@ -642,5 +608,5 @@ while True:
               ~- _             /        >..----.\\\_
                   ~ - - - - ^}_ _ _ _ _ _ _.-\\\_
                     
-                    \n''')
+                    \n'''f'{RESET}')
         break

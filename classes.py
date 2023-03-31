@@ -1,9 +1,9 @@
 # Define classes to represent database tables
 class Campaigns:
-    def __init__(self, id, name, playerset_id, dungeonmaster_id):
+    def __init__(self, id, name, team_id, dungeonmaster_id):
         self.id = id
         self.name = name
-        self.playerset_id = playerset_id
+        self.team_id = team_id
         self.dungeonmaster_id = dungeonmaster_id
     # def __str__(self):
     #     return f"ID: {self.id} || Name: {self.name} || Playerset ID: {self.playerset_id} || DM ID: {self.dungeonmaster_id}"
@@ -16,7 +16,7 @@ class DungeonMaster:
     def __str__(self):
         return f"ID: {self.id} || DM Name: {self.name}"
         
-class Playerset:
+class Team:
     def __init__(self, id, player_1_id, player_2_id, player_3_id, player_4_id):
         self.id = id
         self.player_1_id = player_1_id
